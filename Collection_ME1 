@@ -1,0 +1,117 @@
+{
+  "info": {
+    "_postman_id": "6bfe1a65-b94b-46af-9777-dea1e2c27f45",
+    "name": "Partners Homologation",
+    "description": "# 🚚 Guia de Homologação de Parceiros (Cotação)\n\nEste guia orienta como realizar o teste de conformidade de novos parceiros de frete utilizando o Postman. O objetivo é garantir que a resposta da API do parceiro siga o contrato técnico exigido.\n\n## 🚀 Passo a Passo para o Teste\n\n### 1\\. Configurar a URL\n\nNo topo da aba da requisição, cole a URL do endpoint do parceiro no campo de endereço. Certifique-se de que o método selecionado à esquerda seja GET.\n\n### 2\\. Configurar o Payload (Corpo da Requisição)\n\n1. Clique na aba **Body** (abaixo da URL).\n    \n2. Selecione a opção **raw**.\n    \n3. No canto direito, mude o seletor para **JSON**.\n    \n4. Cole o JSON de teste fornecido para a cotação dentro do campo de texto.\n    \n\n<img src=\"https://content.pstmn.io/f6f1048c-d4d3-4c68-a341-c504e7e256a6/Q2FwdHVyYSBkZSBUZWxhIDIwMjYtMDItMTAgYcyAcyAxMi41MS4yMy5wbmc=\">\n\n### 3\\. Enviar e Validar\n\n1. Clique no botão azul **Send**.\n    \n2. Após o carregamento, vá até a aba **Test Results** (localizada na parte inferior, nos resultados da resposta).\n    \n\n<img src=\"https://content.pstmn.io/a8275d1c-0c13-45e3-a83e-46c95ae08775/Q2FwdHVyYSBkZSBUZWxhIDIwMjYtMDItMTAgYcyAcyAxMi41NC4wNS5wbmc=\" alt=\"\">\n\n## 📋 Como ler os resultados\n\nO script valida automaticamente se os dados retornados estão no formato correto.\n\n- **PASS (Verde):** O campo está correto e segue as regras de negócio.\n    \n- **FAIL (Vermelho):** Existe um erro no contrato de dados. O nome do erro indicará o problema.\n    \n\nRegras de Validação (O que o sistema exige):\n\n| **Campo** | **Regra de Ouro** | **O que evitar** |\n| **Dimensões** | Devem ser **Números Inteiros** | Jamais enviar decimais (ex: 10.5). |\n| **Pesos** | Devem ser **Números Inteiros** | Enviar sempre em gramas (inteiro). |\n| **Preços** | Deve ser Numérico | Não enviar como texto (string). |\n| **IDs e Prazos** | Devem ser **Números Inteiros** | `service`, `shipping_time`, `promise`. |\n\n## 🛠️ Resolução de Problemas (Debug)\n\nSe um teste falhar, você verá uma mensagem explicativa. Exemplos:\n\n- **\"Pacote 0: height deve ser inteiro\":** Significa que o parceiro retornou a altura como um número quebrado ou texto.\n    \n- **\"Missing or invalid dimensions object\":** O parceiro mudou o nome do campo `dimensions` ou ele não foi enviado.\n    \n- **\"Response is not valid JSON\":** A API do parceiro caiu ou retornou um erro de servidor (HTML) em vez de dados.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "18976202"
+  },
+  "item": [
+    {
+      "name": "Validação Respota",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Converte a resposta para objeto JSON",
+              "const responseData = pm.response.json();",
+              "",
+              "// 1. Validação de Estrutura Inicial",
+              "pm.test(\"O campo 'packages' deve ser um array populado\", function () {",
+              "    pm.expect(responseData.packages).to.be.an('array');",
+              "    pm.expect(responseData.packages.length).to.be.above(0);",
+              "});",
+              "",
+              "// 2. Validação das Dimensões do Pacote",
+              "pm.test(\"Os pacotes devem ter dimensões válidas (inteiros)\", function () {",
+              "    responseData.packages.forEach((pkg, i) => {",
+              "        pm.expect(pkg.dimensions, `Pacote ${i} sem objeto dimensions`).to.be.an('object');",
+              "        ",
+              "        const { height, width, length, weight } = pkg.dimensions;",
+              "        const dims = [height, width, length, weight];",
+              "        ",
+              "        dims.forEach((val, idx) => {",
+              "            pm.expect(Number.isInteger(val), `Erro no Pacote ${i}: dimensão no índice ${idx} não é inteiro (valor: ${val})`).to.be.true;",
+              "        });",
+              "    });",
+              "});",
+              "",
+              "// 3. Validação dos Itens dentro do Pacote",
+              "pm.test(\"Os itens do pacote devem ter campos e dimensões válidas\", function () {",
+              "    responseData.packages.forEach((pkg, i) => {",
+              "        pm.expect(pkg.items, `Pacote ${i} sem array de itens`).to.be.an('array').and.not.empty;",
+              "",
+              "        pkg.items.forEach((item, j) => {",
+              "            pm.expect(typeof item.id, `Erro Pct ${i}, Item ${j}: id deve ser string`).to.equal('string');",
+              "            pm.expect(Number.isInteger(item.variation_id), `Erro Pct ${i}, Item ${j}: variation_id deve ser int`).to.be.true;",
+              "            pm.expect(Number.isInteger(item.quantity), `Erro Pct ${i}, Item ${j}: quantity deve ser int`).to.be.true;",
+              "            pm.expect(item.dimensions, `Erro Pct ${i}, Item ${j}: missing dimensions`).to.be.an('object');",
+              "",
+              "            const itemDims = [item.dimensions.height, item.dimensions.width, item.dimensions.length, item.dimensions.weight];",
+              "            itemDims.forEach(val => {",
+              "                pm.expect(Number.isInteger(val), `Erro Pct ${i}, Item ${j}: dimensão não é inteiro`).to.be.true;",
+              "            });",
+              "        });",
+              "    });",
+              "});",
+              "",
+              "// 4. Validação das Cotações (Quotations)",
+              "pm.test(\"As cotações devem ter valores e prazos válidos\", function () {",
+              "    responseData.packages.forEach((pkg, i) => {",
+              "        pm.expect(pkg.quotations, `Pacote ${i} sem array de quotations`).to.be.an('array').and.not.empty;",
+              "",
+              "        pkg.quotations.forEach((quotation, k) => {",
+              "            const { price, handling_time, shipping_time, promise, service } = quotation;",
+              "            ",
+              "            pm.expect(typeof price, `Erro Pct ${i}, Quot ${k}: price deve ser number`).to.equal('number');",
+              "            ",
+              "            // Valida se os tempos e IDs de serviço são inteiros",
+              "            const integers = { handling_time, shipping_time, promise, service };",
+              "            Object.entries(integers).forEach(([key, val]) => {",
+              "                pm.expect(Number.isInteger(val), `Erro Pct ${i}, Quot ${k}: ${key} deve ser inteiro`).to.be.true;",
+              "            });",
+              "        });",
+              "    });",
+              "});",
+              "",
+              "// Feedback visual simples no console",
+              "console.log(\"Validação finalizada para o parceiro: \" + pm.request.url.toString());"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"seller_id\": 337352780,\n    \"buyer_id\": 3123212,\n    \"declared_value\": 69.9,\n    \"items\": [\n        {\n            \"id\": \"MLB1223500643\",\n            \"variation_id\": 0,\n            \"category_id\": \"ABC1234\",\n            \"price\": 69.9,\n            \"quantity\": 1,\n            \"sku\": \"RB-PC890A\",\n            \"store_id\": 231,\n            \"dimensions\": {\n                \"height\": 10,\n                \"width\": 10,\n                \"length\": 31,\n                \"weight\": 500\n            }\n        }\n    ],\n    \"destination\": {\n        \"type\": \"zipcode\",\n        \"value\": \"88063038\"\n    },\n    \"origin\": {\n        \"type\": \"zipcode\",\n        \"value\": \"88063038\"\n    }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https:{{Seu Endpoint (URL) aqui}}",
+          "protocol": "https",
+          "host": [
+            "api",
+            "{{SEU",
+            "Endpoint",
+            "aqui}}"
+          ],
+          "path": []
+        }
+      },
+      "response": []
+    }
+  ]
+}
